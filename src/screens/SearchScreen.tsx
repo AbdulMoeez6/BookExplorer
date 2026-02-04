@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import debounce from 'lodash.debounce';
+import { Feather } from '@expo/vector-icons';
 
 import { Book, RootStackParamList } from '../types';
 import { BookService } from '../services/BookService';
@@ -81,7 +82,7 @@ export default function SearchScreen() {
       </View>
 
       <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Feather name="search" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.input}
           placeholder="Book title or author"
@@ -137,8 +138,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   searchIcon: {
-    marginRight: 8,
-    fontSize: 16,
+    marginRight: 10,
   },
   input: {
     flex: 1,
