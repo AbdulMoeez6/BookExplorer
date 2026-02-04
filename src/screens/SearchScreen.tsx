@@ -4,10 +4,8 @@ import {
   Text,
   TextInput,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { Book, RootStackParamList } from '../types';
 import { BookService } from '../services/BookService';
+import { BookCard } from '../components/BookCard'; // Import the new component
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 
@@ -51,26 +50,12 @@ export default function SearchScreen() {
     debouncedSearch(text);
   };
 
+  // CLEANER RENDER FUNCTION
   const renderItem = ({ item }: { item: Book }) => (
-    <TouchableOpacity
-      style={styles.itemContainer}
-      onPress={() => navigation.navigate('Detail', { book: item })}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {item.volumeInfo.imageLinks?.smallThumbnail && (
-          <Image 
-            source={{ uri: item.volumeInfo.imageLinks.smallThumbnail }} 
-            style={styles.listThumbnail} 
-          />
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.itemTitle}>{item.volumeInfo.title}</Text>
-          <Text style={styles.itemAuthor}>
-            by {item.volumeInfo.authors?.join(', ')}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <BookCard 
+      book={item} 
+      onPress={() => navigation.navigate('Detail', { book: item })} 
+    />
   );
 
   return (
@@ -147,25 +132,5 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-  },
-  itemContainer: {
-    paddingVertical: 12,
-  },
-  listThumbnail: {
-    width: 40, 
-    height: 60, 
-    marginRight: 10, 
-    borderRadius: 4,
-    backgroundColor: '#eee'
-  },
-  itemTitle: {
-    fontSize: 16,
-    color: '#20B2AA', 
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  itemAuthor: {
-    fontSize: 14,
-    color: '#888',
   },
 });
