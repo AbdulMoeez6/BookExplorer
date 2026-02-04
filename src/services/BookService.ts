@@ -16,8 +16,9 @@ export const BookService = {
     if (!query) return [];
     
     try {
+      // FIX: Changed 'title=' to 'q=' to allow searching by Author OR Title
       const response = await axios.get(
-        `https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&limit=10`
+        `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10`
       );
 
       return response.data.docs.map((item: any) => ({
@@ -74,10 +75,9 @@ export const BookService = {
         } catch (e) { /* Ignore OL failure */ }
       }
 
-      // Step B: Try Wikipedia fallback (NOW WITH HEADERS)
+      // Step B: Try Wikipedia fallback (With User-Agent Header)
       if (!bioFound && authorName) {
         try {
-          // Wikipedia requires a User-Agent or it blocks the request
           const wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(authorName)}`;
           const wikiRes = await axios.get(wikiUrl, {
             headers: { 'User-Agent': 'BookExplorerApp/1.0 (student_project)' }
@@ -87,13 +87,10 @@ export const BookService = {
             result.authorBio = wikiRes.data.extract;
             bioFound = true;
           }
-        } catch (e) { 
-          // console.log("Wiki failed", e); 
-        }
+        } catch (e) { /* Ignore Wiki failure */ }
       }
 
       // Step C: FINAL FALLBACK (Professional Polish)
-      // If James Clear has no Wiki page, we show a clean message instead of "Not Listed"
       if (!bioFound && authorName) {
          result.authorBio = `${authorName} is the author of this book. Detailed biographical information is currently unavailable from public sources.`;
       }
