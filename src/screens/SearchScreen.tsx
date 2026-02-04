@@ -35,13 +35,35 @@ export default function SearchScreen() {
     }
     try {
       setLoading(true);
-      // Using Google Books API as discussed for speed
+      
+      // 1. SWITCH TO OPEN LIBRARY API (No API Key, No Rate Limits)
       const response = await axios.get(
-        `https://www.googleapis.com/books/v1/volumes?q=${text}&maxResults=10`
+        `https://openlibrary.org/search.json?title=${encodeURIComponent(text)}&limit=10`
       );
-      setBooks(response.data.items || []);
+
+      // 2. MAP DATA TO MATCH YOUR EXISTING APP STRUCTURE
+      // We convert Open Library's response to match the "Book" interface 
+      // used by the rest of your app.
+      const mappedBooks: Book[] = response.data.docs.map((item: any) => ({
+        id: item.key, 
+        volumeInfo: {
+          title: item.title,
+          authors: item.author_name || ['Unknown Author'],
+          publishedDate: item.first_publish_year?.toString() || 'N/A',
+          description: item.first_sentence?.[0] || 'No description available.',
+          // Mock ratings since Open Lib search doesn't always return them cleanly
+          averageRating: item.ratings_average ? parseFloat(item.ratings_average.toFixed(1)) : 4.0, 
+          ratingsCount: item.ratings_count || 0,
+          imageLinks: item.cover_i ? {
+            thumbnail: `https://covers.openlibrary.org/b/id/${item.cover_i}-M.jpg`,
+            smallThumbnail: `https://covers.openlibrary.org/b/id/${item.cover_i}-S.jpg`
+          } : undefined
+        }
+      }));
+
+      setBooks(mappedBooks);
     } catch (error) {
-      console.error(error);
+      console.log('Search error:', error);
     } finally {
       setLoading(false);
     }
@@ -60,11 +82,20 @@ export default function SearchScreen() {
       style={styles.itemContainer}
       onPress={() => navigation.navigate('Detail', { book: item })}
     >
-      <View>
-        <Text style={styles.itemTitle}>{item.volumeInfo.title}</Text>
-        <Text style={styles.itemAuthor}>
-          by {item.volumeInfo.authors?.join(', ') || 'Unknown Author'}
-        </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {/* Show Thumbnail if available */}
+        {item.volumeInfo.imageLinks?.smallThumbnail && (
+          <Image 
+            source={{ uri: item.volumeInfo.imageLinks.smallThumbnail }} 
+            style={styles.listThumbnail} 
+          />
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.itemTitle}>{item.volumeInfo.title}</Text>
+          <Text style={styles.itemAuthor}>
+            by {item.volumeInfo.authors?.join(', ')}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -99,7 +130,7 @@ export default function SearchScreen() {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
+          // Removed keyboardShouldPersistTaps to prevent crash
         />
       )}
     </SafeAreaView>
@@ -151,7 +182,13 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     paddingVertical: 12,
-    // No separator lines in the design
+  },
+  listThumbnail: {
+    width: 40, 
+    height: 60, 
+    marginRight: 10, 
+    borderRadius: 4,
+    backgroundColor: '#eee'
   },
   itemTitle: {
     fontSize: 16,
