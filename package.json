@@ -9,12 +9,19 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@react-navigation/native": "^7.1.28",
+    "@react-navigation/native-stack": "^7.12.0",
+    "axios": "^1.13.4",
     "expo": "~54.0.33",
     "expo-status-bar": "~3.0.9",
+    "lodash.debounce": "^4.0.8",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "^5.6.2",
+    "react-native-screens": "^4.22.0"
   },
   "devDependencies": {
+    "@types/lodash.debounce": "^4.0.9",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },
