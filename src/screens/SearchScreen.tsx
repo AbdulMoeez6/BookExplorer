@@ -12,10 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import axios from 'axios';
 import debounce from 'lodash.debounce';
 
 import { Book, RootStackParamList } from '../types';
+import { BookService } from '../services/BookService';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 
@@ -25,7 +25,6 @@ export default function SearchScreen() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // The Figma design uses a specific Green/Teal for titles
   const THEME_TEAL = '#20B2AA'; 
 
   const searchBooks = async (text: string) => {
@@ -35,36 +34,8 @@ export default function SearchScreen() {
     }
     try {
       setLoading(true);
-      
-      // 1. SWITCH TO OPEN LIBRARY API (No API Key, No Rate Limits)
-      const response = await axios.get(
-        `https://openlibrary.org/search.json?title=${encodeURIComponent(text)}&limit=10`
-      );
-
-      // 2. MAP DATA TO MATCH YOUR EXISTING APP STRUCTURE
-      // We convert Open Library's response to match the "Book" interface 
-      // used by the rest of your app.
-      // REPLACE THIS BLOCK INSIDE searchBooks function
-      const mappedBooks: Book[] = response.data.docs.map((item: any) => ({
-        id: item.key, 
-        volumeInfo: {
-          title: item.title,
-          authors: item.author_name || ['Unknown Author'],
-          publishedDate: item.first_publish_year?.toString() || 'N/A',
-          description: item.first_sentence?.[0] || 'No description available.', // Placeholder
-          
-          // FIX: Use real ratings or 0. Do NOT default to 4.0
-          averageRating: item.ratings_average ? parseFloat(item.ratings_average.toFixed(1)) : 0,
-          ratingsCount: item.ratings_sortable || 0,
-          
-          imageLinks: item.cover_i ? {
-            thumbnail: `https://covers.openlibrary.org/b/id/${item.cover_i}-M.jpg`,
-            smallThumbnail: `https://covers.openlibrary.org/b/id/${item.cover_i}-S.jpg`
-          } : undefined
-        }
-      }));
-
-      setBooks(mappedBooks);
+      const results = await BookService.searchBooks(text);
+      setBooks(results);
     } catch (error) {
       console.log('Search error:', error);
     } finally {
@@ -72,7 +43,6 @@ export default function SearchScreen() {
     }
   };
 
-  // Debounce prevents API spam while typing
   const debouncedSearch = useCallback(debounce(searchBooks, 500), []);
 
   const handleTextChange = (text: string) => {
@@ -86,7 +56,6 @@ export default function SearchScreen() {
       onPress={() => navigation.navigate('Detail', { book: item })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {/* Show Thumbnail if available */}
         {item.volumeInfo.imageLinks?.smallThumbnail && (
           <Image 
             source={{ uri: item.volumeInfo.imageLinks.smallThumbnail }} 
@@ -105,14 +74,12 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.backArrow}>←</Text> 
         <Text style={styles.headerTitle}>Search Book</Text>
         <View style={{ width: 24 }} /> 
       </View>
 
-      {/* Search Input */}
       <View style={styles.searchContainer}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
@@ -124,7 +91,6 @@ export default function SearchScreen() {
         />
       </View>
 
-      {/* Results */}
       {loading ? (
         <ActivityIndicator size="large" color={THEME_TEAL} style={{ marginTop: 20 }} />
       ) : (
@@ -133,7 +99,6 @@ export default function SearchScreen() {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          // Removed keyboardShouldPersistTaps to prevent crash
         />
       )}
     </SafeAreaView>
@@ -164,7 +129,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6', // Light gray from design
+    backgroundColor: '#F3F4F6', 
     marginHorizontal: 16,
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -195,7 +160,7 @@ const styles = StyleSheet.create({
   },
   itemTitle: {
     fontSize: 16,
-    color: '#20B2AA', // Matching that specific Figma Teal
+    color: '#20B2AA', 
     fontWeight: '500',
     marginBottom: 4,
   },

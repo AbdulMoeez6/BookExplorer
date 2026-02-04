@@ -10,18 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import axios from 'axios';
 import { RootStackParamList } from '../types';
+import { BookService } from '../services/BookService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Detail'>;
-
-// Helper to clean up Open Library text
-const cleanText = (text: string | { value: string } | undefined) => {
-  if (!text) return null;
-  const str = typeof text === 'string' ? text : text.value;
-  // Remove messy markdown or newlines if any
-  return str.replace(/\r\n/g, '\n').replace(/--/g, '—');
-};
 
 export default function DetailScreen({ route, navigation }: Props) {
   const { book } = route.params;
@@ -38,85 +30,13 @@ export default function DetailScreen({ route, navigation }: Props) {
     const fetchRichData = async () => {
       try {
         setLoading(true);
-
-        // --- 1. GET WORK DETAILS (Description) ---
-        const workUrl = `https://openlibrary.org${book.id}.json`;
-        const workRes = await axios.get(workUrl);
-        const workData = workRes.data;
-
-        const desc = cleanText(workData.description) || 'No overview available for this book.';
-        setDescription(desc);
-
-        // --- 2. GET AUTHOR BIO (With Wikipedia Fallback) ---
-        let bioFound = false;
+        const details = await BookService.getBookDetails(book.id, initialInfo.authors?.[0]);
         
-        // Step A: Try Open Library
-        if (workData.authors && workData.authors.length > 0) {
-          try {
-            const authorKey = workData.authors[0].author.key;
-            const authorUrl = `https://openlibrary.org${authorKey}.json`;
-            const authorRes = await axios.get(authorUrl);
-            const olBio = cleanText(authorRes.data.bio);
-
-            if (olBio) {
-              setAuthorBio(olBio);
-              bioFound = true;
-            }
-          } catch (e) {
-            console.log("Open Library Author Fetch failed, trying Wikipedia...");
-          }
-        }
-
-        // Step B: Wikipedia Fallback (If Open Library failed or was empty)
-        if (!bioFound) {
-          const authorName = initialInfo.authors?.[0];
-          if (authorName) {
-            try {
-              // Wikipedia Summary API is free and doesn't need a key
-              const wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(authorName)}`;
-              const wikiRes = await axios.get(wikiUrl);
-              
-              if (wikiRes.data.extract) {
-                setAuthorBio(wikiRes.data.extract);
-                bioFound = true;
-              }
-            } catch (e) {
-              console.log("Wikipedia Fetch failed");
-            }
-          }
-        }
-
-        // Step C: Final Fallback
-        if (!bioFound) {
-           setAuthorBio(`James Clear is a writer known for this work. (Biography data currently unavailable).`);
-        }
-
-        // --- 3. GET RATINGS ---
-        try {
-            const ratingsUrl = `https://openlibrary.org${book.id}/ratings.json`;
-            const ratingsRes = await axios.get(ratingsUrl);
-            const counts = ratingsRes.data.counts || {};
-            const totalCount = (counts['1'] || 0) + (counts['2'] || 0) + (counts['3'] || 0) + (counts['4'] || 0) + (counts['5'] || 0);
-            
-            let weightedSum = 0;
-            if (totalCount > 0) {
-                weightedSum += (counts['1'] || 0) * 1;
-                weightedSum += (counts['2'] || 0) * 2;
-                weightedSum += (counts['3'] || 0) * 3;
-                weightedSum += (counts['4'] || 0) * 4;
-                weightedSum += (counts['5'] || 0) * 5;
-                const avg = (weightedSum / totalCount).toFixed(1);
-                setRating({ average: parseFloat(avg), count: totalCount });
-            } else {
-                setRating({ average: ratingsRes.data.summary?.average || 0, count: ratingsRes.data.summary?.count || 0 });
-            }
-        } catch (e) {
-            console.log("Ratings fetch failed");
-        }
-
+        setDescription(details.description);
+        setAuthorBio(details.authorBio);
+        setRating(details.rating);
       } catch (error) {
-        console.error("Error fetching rich details:", error);
-        setDescription("Could not load full details.");
+        setDescription("Could not load details.");
       } finally {
         setLoading(false);
       }
@@ -127,7 +47,6 @@ export default function DetailScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
           <Text style={styles.iconText}>←</Text>
@@ -139,7 +58,6 @@ export default function DetailScreen({ route, navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Book Cover */}
         <View style={styles.imageContainer}>
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={styles.coverImage} resizeMode="cover" />
@@ -148,13 +66,11 @@ export default function DetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {/* Title Section */}
         <View style={styles.centerMeta}>
           <Text style={styles.title}>{initialInfo.title}</Text>
           <Text style={styles.author}>{initialInfo.authors?.join(', ')}</Text>
           <Text style={styles.year}>Published in {initialInfo.publishedDate}</Text>
           
-          {/* Rating */}
           <View style={styles.ratingContainer}>
              <View style={{ flexDirection: 'row' }}>
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -192,7 +108,6 @@ export default function DetailScreen({ route, navigation }: Props) {
             </>
         )}
 
-        {/* Green Button */}
         <TouchableOpacity style={styles.readButton}>
           <Text style={styles.readButtonText}>✓ Book Read</Text>
         </TouchableOpacity>
