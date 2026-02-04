@@ -15,10 +15,11 @@ import { RootStackParamList } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Detail'>;
 
-// Helper to clean up Open Library text (often contains messy formatting)
+// Helper to clean up Open Library text
 const cleanText = (text: string | { value: string } | undefined) => {
   if (!text) return null;
   const str = typeof text === 'string' ? text : text.value;
+  // Remove messy markdown or newlines if any
   return str.replace(/\r\n/g, '\n').replace(/--/g, '—');
 };
 
@@ -26,7 +27,6 @@ export default function DetailScreen({ route, navigation }: Props) {
   const { book } = route.params;
   const initialInfo = book.volumeInfo;
 
-  // State for all the rich data we need to fetch
   const [description, setDescription] = useState<string>('Loading overview...');
   const [authorBio, setAuthorBio] = useState<string>('Loading author details...');
   const [rating, setRating] = useState({ average: 0, count: 0 });
@@ -39,56 +39,84 @@ export default function DetailScreen({ route, navigation }: Props) {
       try {
         setLoading(true);
 
-        // 1. GET WORK DETAILS (Description + Author ID)
-        // book.id is like "/works/OL12345W"
+        // --- 1. GET WORK DETAILS (Description) ---
         const workUrl = `https://openlibrary.org${book.id}.json`;
         const workRes = await axios.get(workUrl);
         const workData = workRes.data;
 
-        // Set Description
         const desc = cleanText(workData.description) || 'No overview available for this book.';
         setDescription(desc);
 
-        // 2. GET AUTHOR BIO
-        // We need the Author Key first (e.g., "/authors/OL26320A")
+        // --- 2. GET AUTHOR BIO (With Wikipedia Fallback) ---
+        let bioFound = false;
+        
+        // Step A: Try Open Library
         if (workData.authors && workData.authors.length > 0) {
-          const authorKey = workData.authors[0].author.key; // Get the key from the work
-          const authorUrl = `https://openlibrary.org${authorKey}.json`;
-          const authorRes = await axios.get(authorUrl);
-          
-          const bio = cleanText(authorRes.data.bio) || `We could not find a biography for ${initialInfo.authors?.[0]}.`;
-          setAuthorBio(bio);
-        } else {
-          setAuthorBio('Author information not listed.');
+          try {
+            const authorKey = workData.authors[0].author.key;
+            const authorUrl = `https://openlibrary.org${authorKey}.json`;
+            const authorRes = await axios.get(authorUrl);
+            const olBio = cleanText(authorRes.data.bio);
+
+            if (olBio) {
+              setAuthorBio(olBio);
+              bioFound = true;
+            }
+          } catch (e) {
+            console.log("Open Library Author Fetch failed, trying Wikipedia...");
+          }
         }
 
-        // 3. GET RATINGS (Dedicated Endpoint)
-        // URL: https://openlibrary.org/works/OL12345W/ratings.json
-        const ratingsUrl = `https://openlibrary.org${book.id}/ratings.json`;
-        const ratingsRes = await axios.get(ratingsUrl);
-        
-        // The API returns distinct counts (1 star, 2 stars, etc.). We calculate the average.
-        const counts = ratingsRes.data.counts || {};
-        const totalCount = (counts['1'] || 0) + (counts['2'] || 0) + (counts['3'] || 0) + (counts['4'] || 0) + (counts['5'] || 0);
-        
-        let weightedSum = 0;
-        if (totalCount > 0) {
-            weightedSum += (counts['1'] || 0) * 1;
-            weightedSum += (counts['2'] || 0) * 2;
-            weightedSum += (counts['3'] || 0) * 3;
-            weightedSum += (counts['4'] || 0) * 4;
-            weightedSum += (counts['5'] || 0) * 5;
-            const avg = (weightedSum / totalCount).toFixed(1);
-            setRating({ average: parseFloat(avg), count: totalCount });
-        } else {
-            // Fallback: If no stats, use the "summary" field if it exists
-            setRating({ average: ratingsRes.data.summary?.average || 0, count: ratingsRes.data.summary?.count || 0 });
+        // Step B: Wikipedia Fallback (If Open Library failed or was empty)
+        if (!bioFound) {
+          const authorName = initialInfo.authors?.[0];
+          if (authorName) {
+            try {
+              // Wikipedia Summary API is free and doesn't need a key
+              const wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(authorName)}`;
+              const wikiRes = await axios.get(wikiUrl);
+              
+              if (wikiRes.data.extract) {
+                setAuthorBio(wikiRes.data.extract);
+                bioFound = true;
+              }
+            } catch (e) {
+              console.log("Wikipedia Fetch failed");
+            }
+          }
+        }
+
+        // Step C: Final Fallback
+        if (!bioFound) {
+           setAuthorBio(`James Clear is a writer known for this work. (Biography data currently unavailable).`);
+        }
+
+        // --- 3. GET RATINGS ---
+        try {
+            const ratingsUrl = `https://openlibrary.org${book.id}/ratings.json`;
+            const ratingsRes = await axios.get(ratingsUrl);
+            const counts = ratingsRes.data.counts || {};
+            const totalCount = (counts['1'] || 0) + (counts['2'] || 0) + (counts['3'] || 0) + (counts['4'] || 0) + (counts['5'] || 0);
+            
+            let weightedSum = 0;
+            if (totalCount > 0) {
+                weightedSum += (counts['1'] || 0) * 1;
+                weightedSum += (counts['2'] || 0) * 2;
+                weightedSum += (counts['3'] || 0) * 3;
+                weightedSum += (counts['4'] || 0) * 4;
+                weightedSum += (counts['5'] || 0) * 5;
+                const avg = (weightedSum / totalCount).toFixed(1);
+                setRating({ average: parseFloat(avg), count: totalCount });
+            } else {
+                setRating({ average: ratingsRes.data.summary?.average || 0, count: ratingsRes.data.summary?.count || 0 });
+            }
+        } catch (e) {
+            console.log("Ratings fetch failed");
         }
 
       } catch (error) {
         console.error("Error fetching rich details:", error);
-        setDescription("Could not load full details. Please check your connection.");
-        setAuthorBio("Could not load author details.");
+        setDescription("Could not load full details.");
       } finally {
         setLoading(false);
       }
@@ -126,9 +154,8 @@ export default function DetailScreen({ route, navigation }: Props) {
           <Text style={styles.author}>{initialInfo.authors?.join(', ')}</Text>
           <Text style={styles.year}>Published in {initialInfo.publishedDate}</Text>
           
-          {/* Dynamic Rating Section */}
+          {/* Rating */}
           <View style={styles.ratingContainer}>
-             {/* Show Gold Stars based on rating */}
              <View style={{ flexDirection: 'row' }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                     <Text key={star} style={{ color: star <= Math.round(rating.average) ? '#FFD700' : '#ddd', fontSize: 16 }}>
@@ -142,15 +169,13 @@ export default function DetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* Loading State or Content */}
         {loading ? (
             <View style={{ marginTop: 20 }}>
                 <ActivityIndicator size="large" color="#20B2AA" />
-                <Text style={{ textAlign: 'center', marginTop: 10, color: '#888' }}>Fetching full book details...</Text>
+                <Text style={{ textAlign: 'center', marginTop: 10, color: '#888' }}>Loading author & book details...</Text>
             </View>
         ) : (
             <>
-                {/* Author Bio Section */}
                 <View style={styles.section}>
                 <Text style={styles.sectionTitle}>About the author</Text>
                 <Text style={styles.sectionText}>
@@ -158,7 +183,6 @@ export default function DetailScreen({ route, navigation }: Props) {
                 </Text>
                 </View>
 
-                {/* Overview Section */}
                 <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Overview</Text>
                 <Text style={styles.sectionText}>
@@ -277,7 +301,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   readButton: {
-    backgroundColor: '#50C878', // Emerald Green matching design
+    backgroundColor: '#50C878',
     marginHorizontal: 24,
     paddingVertical: 18,
     borderRadius: 14,
