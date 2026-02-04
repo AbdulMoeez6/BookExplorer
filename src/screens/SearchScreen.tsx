@@ -44,16 +44,19 @@ export default function SearchScreen() {
       // 2. MAP DATA TO MATCH YOUR EXISTING APP STRUCTURE
       // We convert Open Library's response to match the "Book" interface 
       // used by the rest of your app.
+      // REPLACE THIS BLOCK INSIDE searchBooks function
       const mappedBooks: Book[] = response.data.docs.map((item: any) => ({
         id: item.key, 
         volumeInfo: {
           title: item.title,
           authors: item.author_name || ['Unknown Author'],
           publishedDate: item.first_publish_year?.toString() || 'N/A',
-          description: item.first_sentence?.[0] || 'No description available.',
-          // Mock ratings since Open Lib search doesn't always return them cleanly
-          averageRating: item.ratings_average ? parseFloat(item.ratings_average.toFixed(1)) : 4.0, 
-          ratingsCount: item.ratings_count || 0,
+          description: item.first_sentence?.[0] || 'No description available.', // Placeholder
+          
+          // FIX: Use real ratings or 0. Do NOT default to 4.0
+          averageRating: item.ratings_average ? parseFloat(item.ratings_average.toFixed(1)) : 0,
+          ratingsCount: item.ratings_sortable || 0,
+          
           imageLinks: item.cover_i ? {
             thumbnail: `https://covers.openlibrary.org/b/id/${item.cover_i}-M.jpg`,
             smallThumbnail: `https://covers.openlibrary.org/b/id/${item.cover_i}-S.jpg`
